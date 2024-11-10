@@ -1,9 +1,9 @@
 {
 	"version": 2,
 	"rewrites": [
-		{ "source": "/auth/(.*)", "destination": "/api/index.js" },
-		{ "source": "/health", "destination": "/api/index.js" },
-		{ "source": "/", "destination": "/api/index.js" },
-		{ "source": "/(.*)", "destination": "/api/index.js" }
+		{ "source": "/auth/(.*)", "destination": "/api" },
+		{ "source": "/health", "destination": "/api" },
+		{ "source": "/", "destination": "/api" },
+		{ "source": "/(.*)", "destination": "/api" }
 	]
 }
