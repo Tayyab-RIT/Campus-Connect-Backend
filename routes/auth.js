@@ -32,7 +32,7 @@ router.post("/login", async (req, res) => {
 	res.status(200).json({ message: "Login successful", data });
 });
 
-router.post("/health", async (req, res) => {
+router.get("/health", async (req, res) => {
 	res.send("AUTH health working");
 });
 
