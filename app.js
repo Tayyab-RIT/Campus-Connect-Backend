@@ -27,6 +27,9 @@ app.use(express.json());
 app.get("/health", (req, res) => {
 	res.send("Campus Connect API is running!");
 });
+app.get("/", (req, res) => {
+	res.send("Campus Connect API is running!");
+});
 
 const authRoutes = require("./routes/auth");
 app.use("/auth", authRoutes);
