@@ -54,4 +54,64 @@ router.get("/profile", async (req, res) => {
 	res.status(200).json({ data });
 });
 
+router.get("/current-user", async (req, res) => {
+	const token = req.headers.authorization?.split(" ")[1];
+	if (!token) {
+		return res.status(401).json({ error: "Authorization token missing" });
+	}
+
+	const {
+		data: { user },
+	} = await supabase.auth.getUser(token.trim());
+
+	if (!user) {
+		return res.status(401).json({ error: "User not found" });
+	}
+
+	res.status(200).json({ data: user });
+});
+
+router.get("/profile/:username", async (req, res) => {
+	const { username } = req.params;
+	console.log(username);
+
+	const { data: user, error: userError } = await supabase.from("user_data").select("*").eq("username", username).single();
+
+	if (userError) {
+		return res.status(400).json({ error: userError.message });
+	}
+
+	if (!user) {
+		return res.status(404).json({ error: "User not found" });
+	}
+
+	res.status(200).json({ data: user });
+});
+
+router.put("/profile", async (req, res) => {
+	const token = req.headers.authorization?.split(" ")[1];
+	if (!token) {
+		return res.status(401).json({ error: "Authorization token missing" });
+	}
+
+	const {
+		data: { user },
+	} = await supabase.auth.getUser(token.trim());
+
+	if (!user) {
+		return res.status(401).json({ error: "User not found" });
+	}
+
+	const { data, error } = await supabase
+		.from("user_data")
+		.update({ ...req.body })
+		.eq("user_id", user.id);
+
+	if (error) {
+		return res.status(400).json({ error: error.message });
+	}
+
+	res.status(200).json({ data });
+});
+
 module.exports = router;
