@@ -16,11 +16,6 @@ router.post("/register", async (req, res) => {
 	res.status(201).json({ message: "User registered successfully", user });
 });
 
-router.get("/register", async (req, res) => {
-	console.log("HIT HERE");
-	console.log(req.body);
-});
-
 // User login route
 router.post("/login", async (req, res) => {
 	const { email, password } = req.body;
@@ -34,6 +29,29 @@ router.post("/login", async (req, res) => {
 
 router.get("/health", async (req, res) => {
 	res.send("AUTH health working");
+});
+
+router.get("/profile", async (req, res) => {
+	const token = req.headers.authorization?.split(" ")[1];
+	if (!token) {
+		return res.status(401).json({ error: "Authorization token missing" });
+	}
+
+	const {
+		data: { user },
+	} = await supabase.auth.getUser(token.trim());
+
+	if (!user) {
+		return res.status(401).json({ error: "User not found" });
+	}
+
+	const { data, error } = await supabase.from("user_data").select("*").eq("user_id", user.id).single();
+
+	if (error) {
+		return res.status(400).json({ error: error.message });
+	}
+
+	res.status(200).json({ data });
 });
 
 module.exports = router;

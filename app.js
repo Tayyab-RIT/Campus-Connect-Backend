@@ -25,7 +25,7 @@ app.use(express.json());
 
 // Simple route to test server
 app.get("/health", (req, res) => {
-	res.send("Campus Connect API is running!");
+	res.send("Health UP");
 });
 app.get("/", (req, res) => {
 	res.send("Campus Connect API is running!");

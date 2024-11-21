@@ -4,9 +4,9 @@
 	"description": "",
 	"main": "app.js",
 	"scripts": {
-		"start": "node app.js"
+		"start": "nodemon app.js"
 	},
-	"author": "TAYYAB SAJID",
+	"author": "Campus Connect",
 	"license": "ISC",
 	"dependencies": {
 		"@supabase/supabase-js": "^2.46.1",
