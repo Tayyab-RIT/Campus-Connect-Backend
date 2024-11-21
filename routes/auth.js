@@ -114,4 +114,117 @@ router.put("/profile", async (req, res) => {
 	res.status(200).json({ data });
 });
 
+router.get("/feed", async (req, res) => {
+	const { page, filter } = req.query;
+
+	const { data, error } = await supabase
+		.from("post")
+		.select(
+			`id,
+      user_id,
+      content,
+      image,
+      created_at,
+      comment (
+        id,
+        user_id,
+        content,
+        created_at
+      ),
+      like (id, user_id)`
+		)
+		.range((page - 1) * 10, page * 10);
+
+	if (error) {
+		return res.status(400).json({ error: error.message });
+	}
+
+	res.status(200).json({ data });
+});
+
+router.post("/like/:postId", async (req, res) => {
+	const token = req.headers.authorization?.split(" ")[1];
+	if (!token) {
+		return res.status(401).json({ error: "Authorization token missing" });
+	}
+
+	const {
+		data: { user },
+	} = await supabase.auth.getUser(token.trim());
+
+	if (!user) {
+		return res.status(401).json({ error: "User not found" });
+	}
+
+	const { postId } = req.params;
+
+	const { data, error } = await supabase.from("like").insert({ post_id: postId, user_id: user.id });
+
+	if (error) {
+		return res.status(400).json({ error: error.message });
+	}
+
+	res.status(201).json({ message: "Post liked successfully", data });
+});
+
+router.delete("/like/:postId", async (req, res) => {
+	const token = req.headers.authorization?.split(" ")[1];
+	if (!token) {
+		return res.status(401).json({ error: "Authorization token missing" });
+	}
+
+	const {
+		data: { user },
+	} = await supabase.auth.getUser(token.trim());
+
+	if (!user) {
+		return res.status(401).json({ error: "User not found" });
+	}
+
+	const { postId } = req.params;
+
+	const { data, error } = await supabase.from("like").delete().eq("post_id", postId).eq("user_id", user.id);
+
+	if (error) {
+		return res.status(400).json({ error: error.message });
+	}
+
+	res.status(200).json({ message: "Post unliked successfully", data });
+});
+
+router.post("/comment/:postId", async (req, res) => {
+	const token = req.headers.authorization?.split(" ")[1];
+	if (!token) {
+		return res.status(401).json({ error: "Authorization token missing" });
+	}
+
+	const {
+		data: { user },
+	} = await supabase.auth.getUser(token.trim());
+
+	if (!user) {
+		return res.status(401).json({ error: "User not found" });
+	}
+
+	const { postId } = req.params;
+	const { content } = req.body;
+
+	if (!content) {
+		return res.status(400).json({ error: "Comment content is required" });
+	}
+
+	const { data, error } = await supabase.from("comment").insert({
+		post_id: postId,
+		user_id: user.id,
+		content: content,
+		created_at: new Date().toISOString(), // Optional: Set manually if necessary
+	});
+
+	if (error) {
+		return res.status(400).json({ error: error.message });
+	}
+
+	res.status(201).json({ message: "Comment added successfully", data });
+});
+
 module.exports = router;
