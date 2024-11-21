@@ -213,12 +213,15 @@ router.post("/comment/:postId", async (req, res) => {
 		return res.status(400).json({ error: "Comment content is required" });
 	}
 
-	const { data, error } = await supabase.from("comment").insert({
-		post_id: postId,
-		user_id: user.id,
-		content: content,
-		created_at: new Date().toISOString(), // Optional: Set manually if necessary
-	});
+	const { data, error } = await supabase
+		.from("comment")
+		.insert({
+			post_id: postId,
+			user_id: user.id,
+			content: content,
+			created_at: new Date().toISOString(), // Optional: Set manually if necessary
+		})
+		.select();
 
 	if (error) {
 		return res.status(400).json({ error: error.message });
