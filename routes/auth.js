@@ -72,20 +72,33 @@ router.get("/current-user", async (req, res) => {
 		return res.status(401).json({ error: "Authorization token missing" });
 	}
 
-	const {
-		data: { user },
-	} = await supabase.auth.getUser(token.trim());
+	// Get user details from the token
+	const { data: authUser, error: authError } = await supabase.auth.getUser(token.trim());
 
-	if (!user) {
-		return res.status(401).json({ error: "User not found" });
+	if (authError || !authUser?.user) {
+		return res.status(401).json({ error: "User not authenticated" });
 	}
+
+	const userId = authUser.user.id;
+
+	// Fetch additional user details from `user_data` table
+	const { data: userDetails, error: userError } = await supabase.from("user_data").select("*").eq("user_id", userId).single();
+
+	if (userError) {
+		return res.status(400).json({ error: "Failed to fetch user details" });
+	}
+
+	// Combine the authentication user object and additional details
+	const user = {
+		...authUser.user,
+		...userDetails, // Includes fields like is_admin, full_name, etc., if they exist
+	};
 
 	res.status(200).json({ data: user });
 });
 
 router.get("/profile/:username", async (req, res) => {
 	const { username } = req.params;
-	console.log(username);
 
 	const { data: user, error: userError } = await supabase.from("user_data").select("*").eq("username", username).single();
 
@@ -127,36 +140,56 @@ router.put("/profile", async (req, res) => {
 });
 
 router.get("/feed", async (req, res) => {
+	const token = req.headers.authorization?.split(" ")[1];
+	if (!token) {
+		return res.status(401).json({ error: "Authorization token missing" });
+	}
+
+	const {
+		data: { user },
+	} = await supabase.auth.getUser(token.trim());
+
+	if (!user) {
+		return res.status(401).json({ error: "User not found" });
+	}
+
 	let { page, filter } = req.query;
 	page = page || 1; // Default page to 1 if not provided
 	const rangeStart = (page - 1) * 10;
 	const rangeEnd = page * 10;
 
-	let query = supabase
-		.from("post")
-		.select(
-			`id,
+	let query = supabase.from("post").select(
+		`
+		id,
 		user_id,
 		content,
 		image,
 		created_at,
+		user_data (
+		  full_name
+		),
 		comment (
 		  id,
 		  user_id,
 		  content,
-		  created_at
+		  created_at,
+		  user_data (
+			full_name
+		  )
 		),
-		like (id, user_id)`
+		like (
+		  id,
+		  user_id
 		)
-		.range(rangeStart, rangeEnd);
+	  `
+	);
 
 	// Add the filter condition only if filter exists
-	console.log(filter);
-
-	if (filter !== "null" && filter !== "undefined") {
+	if (filter && filter !== "null" && filter !== "undefined") {
 		query = query.like("content", `%${filter}%`);
-		console.log(query);
 	}
+
+	query = query.range(rangeStart, rangeEnd).order("created_at", { ascending: false });
 
 	const { data, error } = await query;
 
@@ -164,7 +197,13 @@ router.get("/feed", async (req, res) => {
 		return res.status(400).json({ error: error.message });
 	}
 
-	res.status(200).json({ data });
+	// Add likedByUser logic
+	const updatedData = data.map((post) => ({
+		...post,
+		likedByUser: post.like.some((like) => like.user_id === user.id),
+	}));
+
+	res.status(200).json({ data: updatedData });
 });
 
 router.post("/like/:postId", async (req, res) => {
@@ -264,7 +303,8 @@ router.get("/tutor/slots", async (req, res) => {
     time,
     duration,
     max_students,
-    current_students`);
+    current_students,
+	user_data(full_name)`);
 
 	if (error) {
 		return res.status(400).json({ error: error.message });
@@ -471,6 +511,76 @@ router.post("/become-tutor", async (req, res) => {
 	}
 
 	res.status(200).json({ message: "You are now a tutor!" });
+});
+
+router.post("/create-post", async (req, res) => {
+	const token = req.headers.authorization?.split(" ")[1];
+
+	if (!token) {
+		return res.status(401).json({ error: "Authorization token missing" });
+	}
+
+	const {
+		data: { user },
+	} = await supabase.auth.getUser(token.trim());
+
+	if (!user) {
+		return res.status(401).json({ error: "User not found" });
+	}
+
+	const { data: userProfile } = await supabase.from("user_data").select("is_admin").eq("user_id", user.id).single();
+
+	if (!userProfile?.is_admin) {
+		return res.status(403).json({ error: "Only admins can create posts" });
+	}
+
+	const { content, image } = req.body;
+
+	const { data, error } = await supabase.from("post").insert({
+		user_id: user.id,
+		content,
+		// image: image ? image.buffer.toString("base64") : null,
+		created_at: new Date().toISOString(),
+	});
+
+	if (error) {
+		return res.status(400).json({ error: error.message });
+	}
+
+	res.status(201).json({ message: "Post created successfully", post: data });
+});
+
+router.delete("/delete-post/:postId", async (req, res) => {
+	const token = req.headers.authorization?.split(" ")[1];
+	if (!token) {
+		return res.status(401).json({ error: "Authorization token missing" });
+	}
+
+	const {
+		data: { user },
+	} = await supabase.auth.getUser(token.trim());
+
+	if (!user) {
+		return res.status(401).json({ error: "User not authenticated" });
+	}
+
+	// Check if the user is an admin
+	const { data: userProfile, error: profileError } = await supabase.from("user_data").select("is_admin").eq("user_id", user.id).single();
+
+	if (profileError || !userProfile?.is_admin) {
+		return res.status(403).json({ error: "Only admins can delete posts" });
+	}
+
+	const { postId } = req.params;
+
+	// Delete the post from the database
+	const { error } = await supabase.from("post").delete().eq("id", postId);
+
+	if (error) {
+		return res.status(400).json({ error: `Failed to delete post: ${error.message}` });
+	}
+
+	res.status(200).json({ message: "Post deleted successfully" });
 });
 
 module.exports = router;
